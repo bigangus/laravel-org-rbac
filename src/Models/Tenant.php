@@ -226,4 +226,35 @@ class Tenant extends Model
                 ->orWhere('path', 'like', $tenant->path.'/%');
         });
     }
+
+    /**
+     * Tree root node (first id in materialized path), for data-scope "whole org" fallbacks.
+     */
+    public function rootAncestor(): self
+    {
+        if (! $this->path) {
+            return $this;
+        }
+
+        $ids = explode('/', $this->path);
+        $rootId = (int) ($ids[0] ?? $this->id);
+
+        return $rootId === (int) $this->id
+            ? $this
+            : static::query()->findOrFail($rootId);
+    }
+
+    /**
+     * Nearest ancestor (or self) with type `organisation` — used for full-org data scope on business rows.
+     */
+    public function nearestOrganisationAncestor(): ?self
+    {
+        foreach ($this->breadcrumb() as $node) {
+            if (($node->type ?? '') === TenantType::Organisation->value) {
+                return $node;
+            }
+        }
+
+        return null;
+    }
 }

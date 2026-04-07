@@ -59,6 +59,31 @@ $user->assignOrgRbacRoleInTenant('admin', $tenant);
 $tenant->members(User::class)->attach($userId, ['is_owner' => false, 'joined_at' => now()]);
 ```
 
+## 业务表只有 `tenant_id` 时的数据范围（行级）
+
+业务行用 **外键 `tenant_id` → `org_rbac_tenants.id`**（部门/团队等节点）。**功能权限**仍用 `hasOrgRbacPermission`；**能看哪些行**用角色 pivot 上的 **`data_scope`**（`DataScope` 枚举）+ `TenantDataScope` 收窄查询。
+
+| `DataScope` | 对 `tenant_id` 的约束 |
+|-------------|------------------------|
+| `Department` | `tenant_id = 当前上下文节点` |
+| `Subtree` | `tenant_id IN 当前节点.subtreeIds()`（含自身） |
+| `Tenant` | `tenant_id IN` 组织根子树：默认取 `nearestOrganisationAncestor()`，否则 `rootAncestor()`；也可传入明确的组织根 |
+| `Self` | 若提供 `user_id`/`created_by` 等列 + 当前用户 id：`tenant_id = 当前节点` 且 `owner 列 = 当前用户`；否则退化为与 `Department` 相同 |
+
+示例（列表查询）：
+
+```php
+use Zhanghongfei\OrgRbac\Enums\DataScope;
+use Zhanghongfei\OrgRbac\Support\CurrentTenant;
+use Zhanghongfei\OrgRbac\Support\TenantDataScope;
+
+$tenant = app(CurrentTenant::class)->get();
+$query = Post::query();
+TenantDataScope::apply($query, 'tenant_id', DataScope::Subtree, $tenant);
+```
+
+多角色、多 `data_scope` 时，在应用层合并为 **最宽** 或 **最严** 策略后再调用一次即可。
+
 ## License
 
 MIT

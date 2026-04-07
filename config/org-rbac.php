@@ -10,12 +10,28 @@ return [
     */
     'tables' => [
         'tenants' => 'org_rbac_tenants',
-        'departments' => 'org_rbac_departments',
         'roles' => 'org_rbac_roles',
         'permissions' => 'org_rbac_permissions',
         'role_permission' => 'org_rbac_role_has_permissions',
         'model_has_roles' => 'org_rbac_model_has_roles',
         'model_has_permissions' => 'org_rbac_model_has_permissions',
+        'tenant_user' => 'org_rbac_tenant_user',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application User model (for membership helpers & foreign keys in app code)
+    |--------------------------------------------------------------------------
+    */
+    'user_model' => env('ORG_RBAC_USER_MODEL', \Illuminate\Foundation\Auth\User::class),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Effective permission cache (null = disable)
+    |--------------------------------------------------------------------------
+    */
+    'cache' => [
+        'permissions_ttl_minutes' => env('ORG_RBAC_PERMISSION_CACHE_TTL', 10),
     ],
 
     /*
@@ -54,10 +70,8 @@ return [
     */
     'models' => [
         'tenant' => Zhanghongfei\OrgRbac\Models\Tenant::class,
-        'department' => Zhanghongfei\OrgRbac\Models\Department::class,
         'role' => Zhanghongfei\OrgRbac\Models\Role::class,
         'permission' => Zhanghongfei\OrgRbac\Models\Permission::class,
     ],
 
 ];
-

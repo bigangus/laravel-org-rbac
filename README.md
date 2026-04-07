@@ -1,32 +1,21 @@
 # laravel-org-rbac
 
-Laravel **12.x / 13.x** 多租户、层级组织 + RBAC 包：**Platform → Organization（tenant）→ Department → Roles → Users → Permissions**。
+Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Organisation / Department / Team** 同一 `tenants` 表；**Roles / Users / Permissions**；可选 **用户主租户、超管、成员关系表**。
 
-**环境**：`illuminate/*` 需 `^12.0` 或 `^13.0`。使用 **Laravel 13** 时要求 **PHP ≥ 8.3**（框架要求）；仅使用 Laravel 12 时可为 PHP 8.2。
+**环境**：`illuminate/*` 需 `^12.0` 或 `^13.0`。Laravel 13 需 **PHP ≥ 8.3**。
 
-- **单库 + `tenant_id`** 行级隔离，Eloquent `TenantScope` 自动约束。
-- **权限目录**为全局表 `permissions`；租户隔离通过 **角色（带 `tenant_id`）** 与 **用户-角色分配（pivot 带 `tenant_id`）** 实现。
-- **中间件** `org-rbac.tenant`：解析当前租户并绑定到 `CurrentTenant`。
+## 0.3.x 变更（相对 0.2）
+
+- **移除**独立 `departments` 表：组织/部门/团队均为 `tenants` 树节点（`parent_id`、`type`、`path`、`depth`）。
+- **权限**：支持 `tenant_id` 为空（全局）或绑定节点；含 `display_name`、`group` 等。
+- **角色分配**：`model_has_roles` 含 `assigned_at`、`assigned_by`；保留 `data_scope`。
+- **成员**：`org_rbac_tenant_user`（`user_id` + `tenant_id`）。
+- **继承**：`orgRbacInheritedRolesForTenant` / `orgRbacEffectivePermissions`（沿祖先租户链合并角色；可配置缓存 TTL）。
+- **可选迁移**：若存在 `users` 表，可增加 `users.tenant_id`、`is_super_admin`。
+
+若你已按 0.2 跑过迁移，升级需自行处理数据迁移或在新环境安装。
 
 ## 安装
-
-在应用 `composer.json` 中加入路径仓库（开发阶段示例）：
-
-```json
-{
-    "repositories": [
-        {
-            "type": "path",
-            "url": "../code/laravel-org-rbac"
-        }
-    ],
-    "require": {
-        "zhanghongfei/laravel-org-rbac": "*"
-    }
-}
-```
-
-然后：
 
 ```bash
 composer require zhanghongfei/laravel-org-rbac
@@ -35,10 +24,14 @@ php artisan vendor:publish --tag=org-rbac-migrations
 php artisan migrate
 ```
 
-## 配置
+在 `config/org-rbac.php` 中设置 `user_model`（默认可指向 `App\Models\User`）。
 
-- `config/org-rbac.php`：表名、`tenant_resolution`（路由参数、Header、子域、已登录用户 `tenant_id` 列）、`strict_tenant_scope`。
-- 路由示例：`Route::middleware(['auth', 'org-rbac.tenant'])->group(...)`，并在路由中提供 `{tenant}` 或使用 Header `X-Tenant-ID`。
+## 功能要点
+
+- **物化路径** `path`：子树查询、祖先链；`Tenant::descendants()` / `ancestors()`。
+- **当前租户**：中间件 `org-rbac.tenant` + `CurrentTenant`（路由参数 `{tenant}`、Header、用户 `tenant_id` 等）。
+- **业务表**：对仅当前租户可见的数据模型使用 `BelongsToTenant`（`tenant_id` 全局作用域）。
+- **超管**：用户存在 `is_super_admin` 且为 true 时，`hasOrgRbacPermission*` 恒为 true（请配合可选迁移）。
 
 ## User 模型
 
@@ -48,26 +41,22 @@ use Zhanghongfei\OrgRbac\Concerns\HasOrgRbacRoles;
 class User extends Authenticatable
 {
     use HasOrgRbacRoles;
+
+    protected $fillable = [/* … */, 'tenant_id', 'is_super_admin'];
 }
 ```
-
-检查权限（需已绑定当前租户，例如命中 `EnsureTenant` 中间件）：
 
 ```php
 $user->hasOrgRbacPermission('posts.create');
+$user->orgRbacEffectivePermissions($tenant);
+$user->joinOrgRbacTenant($tenant);
+$user->assignOrgRbacRoleInTenant('admin', $tenant);
 ```
 
-## 业务模型
-
-对租户内数据模型使用 `BelongsToTenant`：
+## Tenant 侧成员（可选）
 
 ```php
-use Zhanghongfei\OrgRbac\Concerns\BelongsToTenant;
-
-class Post extends Model
-{
-    use BelongsToTenant;
-}
+$tenant->members(User::class)->attach($userId, ['is_owner' => false, 'joined_at' => now()]);
 ```
 
 ## License

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2
+
+### Tests
+
+- 扩充 PHPUnit：**95** 用例，覆盖 `DataScope` / `DataScopeMerger`、`TenantDataScope`（Department / Subtree / Tenant / Self / widest）、pivot 上 `orgRbacWidestDataScopeForTenant` 与非法/空 `data_scope`、`TenantScope` + `BelongsToTenant`、`CurrentTenant`、`HasOrgRbacRoles`、`Tenant` 树查询、`Role` 权限操作、`OrgRbacCache` 等。
+- 新增测试表 `test_posts` 与 `Post` 模型（fixtures）用于行级 scope 与全局租户作用域场景。
+
 ## 0.7.1
 
 ### Changed

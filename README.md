@@ -4,6 +4,8 @@ Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Or
 
 **环境**：`illuminate/*` 需 `^12.0` 或 `^13.0`。Laravel 13 需 **PHP ≥ 8.3**。
 
+**测试**：`composer test`（PHPUnit，**95** 用例，覆盖 `DataScope`（含 pivot/widest/数据范围边界）、`TenantDataScope`、`TenantScope` + `BelongsToTenant`、`HasOrgRbacRoles`、租户树模型、`OrgRbacCache` 等）。
+
 ## 适用范围（重要）
 
 本包面向 **从零搭建的 Laravel 项目（greenfield）**：按本包迁移建表。若你已有存量用户/RBAC/多租户方案，或需与 Spatie 等包长期并存，**必须自行评估迁移与数据双写**；本仓库**不承诺**无痛接入复杂旧系统。

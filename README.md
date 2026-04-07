@@ -29,6 +29,7 @@ php artisan migrate
 ## 功能要点
 
 - **物化路径** `path`：子树查询、祖先链；`Tenant::descendants()` / `ancestors()`。
+- **组织树移动**：修改 `parent_id` 时自动重算本节点的 `depth`、`path`，并按前缀批量更新所有子孙的 `path` 与 `depth`（禁止挂到自己或子孙下）。
 - **当前租户**：中间件 `org-rbac.tenant` + `CurrentTenant`（路由参数 `{tenant}`、Header、用户 `tenant_id` 等）。
 - **业务表**：对仅当前租户可见的数据模型使用 `BelongsToTenant`（`tenant_id` 全局作用域）。
 - **超管**：用户存在 `is_super_admin` 且为 true 时，`hasOrgRbacPermission*` 恒为 true（请配合可选迁移）。

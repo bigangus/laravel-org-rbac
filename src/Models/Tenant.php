@@ -4,6 +4,7 @@ namespace Zhanghongfei\OrgRbac\Models;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,6 +14,13 @@ use Zhanghongfei\OrgRbac\Enums\TenantType;
 class Tenant extends Model
 {
     use SoftDeletes;
+
+    /**
+     * When {@see parent_id} changes, we stash the old materialized path to rewrite descendant rows after save.
+     *
+     * @var array<int, string>
+     */
+    protected static array $orgRbacPathBeforeParentChange = [];
 
     protected $fillable = [
         'parent_id',
@@ -57,6 +65,69 @@ class Tenant extends Model
                 $tenant->path = (string) $tenant->id;
             }
             $tenant->saveQuietly();
+        });
+
+        static::updating(function (Tenant $tenant): void {
+            if (! $tenant->isDirty('parent_id')) {
+                return;
+            }
+
+            $oldPath = $tenant->getOriginal('path');
+            if ($oldPath === null || $oldPath === '') {
+                return;
+            }
+
+            if ($tenant->parent_id !== null && (int) $tenant->parent_id === (int) $tenant->id) {
+                throw new \InvalidArgumentException('Tenant cannot be its own parent.');
+            }
+
+            $parent = $tenant->parent_id !== null
+                ? static::query()->find($tenant->parent_id)
+                : null;
+
+            if ($tenant->parent_id !== null && $parent === null) {
+                throw (new ModelNotFoundException)->setModel(static::class, [$tenant->parent_id]);
+            }
+
+            if ($parent !== null && $parent->path !== null && $parent->path !== '') {
+                if (str_starts_with($parent->path.'/', $oldPath.'/')) {
+                    throw new \InvalidArgumentException('Cannot move a tenant under its own descendant.');
+                }
+            }
+
+            $tenant->depth = $parent ? $parent->depth + 1 : 0;
+            $tenant->path = $parent
+                ? $parent->path.'/'.$tenant->id
+                : (string) $tenant->id;
+
+            static::$orgRbacPathBeforeParentChange[$tenant->getKey()] = $oldPath;
+        });
+
+        static::updated(function (Tenant $tenant): void {
+            $id = $tenant->getKey();
+            if (! isset(static::$orgRbacPathBeforeParentChange[$id])) {
+                return;
+            }
+
+            $oldPath = static::$orgRbacPathBeforeParentChange[$id];
+            unset(static::$orgRbacPathBeforeParentChange[$id]);
+
+            $newPath = $tenant->path;
+            if ($newPath === null || $oldPath === $newPath) {
+                return;
+            }
+
+            static::query()
+                ->where('path', 'like', $oldPath.'/%')
+                ->orderBy('depth')
+                ->chunkById(200, function (Collection $rows) use ($oldPath, $newPath): void {
+                    foreach ($rows as $desc) {
+                        /** @var Tenant $desc */
+                        $desc->path = $newPath . substr($desc->path, strlen($oldPath));
+                        $desc->depth = substr_count($desc->path, '/');
+                        $desc->saveQuietly();
+                    }
+                });
         });
     }
 

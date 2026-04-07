@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Foundation\Auth\User;
-
 return [
 
     /*
@@ -25,7 +23,7 @@ return [
     | Application User model (for membership helpers & foreign keys in app code)
     |--------------------------------------------------------------------------
     */
-    'user_model' => env('ORG_RBAC_USER_MODEL', User::class),
+    'user_model' => env('ORG_RBAC_USER_MODEL', \Illuminate\Foundation\Auth\User::class),
 
     /*
     |--------------------------------------------------------------------------

@@ -115,16 +115,7 @@ TenantDataScope::applyUsingWidestRoleScopeForUser($query, 'tenant_id', $user, $t
 修改某节点的 `parent_id` 后，库会更新该节点及子孙的 `path` / `depth`，并派发 **`TenantReparented`**。
 
 - **本包权限缓存**：`OrgRbacServiceProvider` 已注册 **`FlushOrgRbacPermissionCacheOnTenantReparented`**：当默认缓存驱动为 **Redis** 时，会删除键名匹配 **`{cache 前缀}{permission_key_prefix}*`** 的项（见 `config/org-rbac.php` 中 `cache.permission_key_prefix`，默认 `org-rbac.perm.`）。可通过 **`ORG_RBAC_FLUSH_PERM_CACHE_ON_REPARENT=false`** 关闭。`file` / `database` 等驱动无法按前缀扫描时不会删键（debug 下打日志），可改用 Redis 作缓存或手动 `Cache::forget`。
-- **业务侧**：仍建议监听 **`TenantReparented`**，清理你方依赖 **`tenant_id`、旧 path、子树** 的缓存或搜索索引。
-
-```php
-use Illuminate\Support\Facades\Event;
-use Zhanghongfei\OrgRbac\Events\TenantReparented;
-
-Event::listen(TenantReparented::class, function (TenantReparented $e) {
-    // 业务缓存、Meilisearch、CDN 等
-});
-```
+- 事件 **`TenantReparented`** 仍会派发，若你还有按租户路径或业务维度自管的缓存、搜索索引等，可在应用里自行订阅处理。
 
 ## License
 

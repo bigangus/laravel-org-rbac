@@ -39,6 +39,11 @@ return [
     */
     'cache' => [
         'require_redis' => env('ORG_RBAC_REQUIRE_REDIS_CACHE', true),
+        /*
+        | When require_redis is true: if strict, boot throws when store is not Redis.
+        | If false, only logs (OrgRbacLog) and continues — for staging / degraded mode (not recommended for prod).
+        */
+        'require_redis_strict' => env('ORG_RBAC_REDIS_STRICT_BOOT', true),
         'permissions_ttl_minutes' => env('ORG_RBAC_PERMISSION_CACHE_TTL', 10),
         'permission_key_prefix' => env('ORG_RBAC_PERMISSION_KEY_PREFIX', 'org-rbac.perm.'),
         'flush_permission_cache_on_tenant_reparent' => env('ORG_RBAC_FLUSH_PERM_CACHE_ON_REPARENT', true),
@@ -68,6 +73,10 @@ return [
     */
     'super_admin' => [
         'permission_columns' => ['id', 'name', 'guard_name', 'tenant_id', 'group'],
+        /*
+        | When true, logs once per request per tenant when a super admin resolves effective permissions (compliance).
+        */
+        'audit_resolution' => env('ORG_RBAC_SUPER_ADMIN_AUDIT', false),
     ],
 
     /*
@@ -85,10 +94,16 @@ return [
     |--------------------------------------------------------------------------
     | Order matters: first non-null result wins.
     | Built-in keys: route_parameter, header, subdomain, authenticated_user.
+    |
+    | Security: HTTP header tenant id is spoofable unless your edge strips it. Header resolution is **off**
+    | unless allow_header_resolution=true. When enabled, header_requires_authentication defaults to true
+    | so unauthenticated requests ignore the header (fall through to other strategies).
     */
     'tenant_resolution' => [
         'route_parameter' => 'tenant',
-        'header' => 'X-Tenant-ID',
+        'header' => env('ORG_RBAC_TENANT_HEADER', 'X-Tenant-ID'),
+        'allow_header_resolution' => env('ORG_RBAC_ALLOW_TENANT_HEADER', false),
+        'header_requires_authentication' => env('ORG_RBAC_TENANT_HEADER_REQUIRES_AUTH', true),
         'subdomain' => false,
         'authenticated_user_column' => 'tenant_id',
     ],

@@ -40,11 +40,20 @@ class RequestTenantResolver implements TenantResolver
                 ->first();
         }
 
+        $allowHeader = (bool) Arr::get($this->config, 'tenant_resolution.allow_header_resolution', false);
         $header = Arr::get($this->config, 'tenant_resolution.header');
-        if ($header && $request->headers->has($header)) {
-            $id = $request->headers->get($header);
-            if ($id !== null && $id !== '') {
-                return $tenantModel::query()->find($id);
+        $headerRequiresAuth = (bool) Arr::get($this->config, 'tenant_resolution.header_requires_authentication', true);
+
+        if ($allowHeader && is_string($header) && $header !== '' && $request->headers->has($header)) {
+            if ($headerRequiresAuth && ! $request->user()) {
+                OrgRbacLog::debug('tenant_header_skipped_unauthenticated', [
+                    'header' => $header,
+                ]);
+            } else {
+                $id = $request->headers->get($header);
+                if ($id !== null && $id !== '') {
+                    return $tenantModel::query()->find($id);
+                }
             }
         }
 

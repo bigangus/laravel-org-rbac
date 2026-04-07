@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.7.0
+
+### Security（破坏性变更）
+
+- **HTTP Header 租户解析默认关闭**：`tenant_resolution.allow_header_resolution` 默认 `false`（`ORG_RBAC_ALLOW_TENANT_HEADER`）。需显式开启后才读取 `X-Tenant-ID`（或自定义 header 名）。
+- **Header + 认证**：`header_requires_authentication` 默认 `true`，未登录请求 **忽略** Header，继续走后续策略（并打 debug 日志）。防止伪造 Header 在未鉴权路由上绑定租户。
+
+### Added
+
+- **超管合规审计（可选）**：`super_admin.audit_resolution`（`ORG_RBAC_SUPER_ADMIN_AUDIT`）为 true 时，对超管在 **每个租户上下文首次** 解析有效权限记一条 `OrgRbacLog::info`（`super_admin_effective_permissions_context`）。
+- **Redis 启动策略**：`cache.require_redis_strict`（`ORG_RBAC_REDIS_STRICT_BOOT`，默认 `true`）。为 `false` 时，非 Redis 缓存仅 **记录错误日志** 并继续启动（降级/演练，**不推荐生产**）。
+
+### Tests
+
+- Header 默认忽略、未登录忽略 header 等用例。
+
 ## 0.6.0
 
 ### Breaking / 行为变更

@@ -13,6 +13,11 @@ class RequestTenantResolverTest extends TestCase
     #[Test]
     public function it_resolves_tenant_from_header(): void
     {
+        config([
+            'org-rbac.tenant_resolution.allow_header_resolution' => true,
+            'org-rbac.tenant_resolution.header_requires_authentication' => false,
+        ]);
+
         $tenant = Tenant::query()->create([
             'name' => 'A',
             'slug' => 'tenant-a',

@@ -7,6 +7,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use RuntimeException;
 use Zhanghongfei\OrgRbac\Console\ClearOrgRbacPermissionCacheCommand;
 use Zhanghongfei\OrgRbac\Console\RepairTenantPathsCommand;
 use Zhanghongfei\OrgRbac\Contracts\CurrentTenantContract;
@@ -16,6 +17,7 @@ use Zhanghongfei\OrgRbac\Listeners\FlushOrgRbacPermissionCacheOnTenantReparented
 use Zhanghongfei\OrgRbac\Middleware\EnsureTenant;
 use Zhanghongfei\OrgRbac\Scopes\TenantScope;
 use Zhanghongfei\OrgRbac\Support\CurrentTenant;
+use Zhanghongfei\OrgRbac\Support\OrgRbacLog;
 use Zhanghongfei\OrgRbac\Support\RedisCacheRequirement;
 use Zhanghongfei\OrgRbac\Support\RequestTenantResolver;
 
@@ -41,7 +43,17 @@ class OrgRbacServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if (config('org-rbac.cache.require_redis', true) && ! $this->app->runningUnitTests()) {
-            RedisCacheRequirement::assertDefaultStore(Cache::driver()->getStore());
+            try {
+                RedisCacheRequirement::assertDefaultStore(Cache::driver()->getStore());
+            } catch (RuntimeException $e) {
+                if (config('org-rbac.cache.require_redis_strict', true)) {
+                    throw $e;
+                }
+
+                OrgRbacLog::error('redis_cache_requirement_not_met_boot_continues', [
+                    'message' => $e->getMessage(),
+                ]);
+            }
         }
 
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');

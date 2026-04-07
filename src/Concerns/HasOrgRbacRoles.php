@@ -12,6 +12,7 @@ use Zhanghongfei\OrgRbac\Models\Permission;
 use Zhanghongfei\OrgRbac\Models\Role;
 use Zhanghongfei\OrgRbac\Models\Tenant;
 use Zhanghongfei\OrgRbac\Support\CurrentTenant;
+use Zhanghongfei\OrgRbac\Support\OrgRbacLog;
 
 trait HasOrgRbacRoles
 {
@@ -28,6 +29,11 @@ trait HasOrgRbacRoles
      * @var array<int, Collection<int, Permission>>
      */
     private array $orgRbacMemoEffectivePermissionsByTenantId = [];
+
+    /**
+     * @var array<int, true>
+     */
+    private array $orgRbacSuperAdminAuditedTenantIds = [];
 
     public function orgRbacRoles(): MorphToMany
     {
@@ -113,6 +119,8 @@ trait HasOrgRbacRoles
     public function orgRbacEffectivePermissions(Tenant $tenant): Collection
     {
         if ($this->orgRbacIsSuperAdmin()) {
+            $this->orgRbacAuditSuperAdminEffectivePermissionsContext($tenant);
+
             if ($this->orgRbacMemoSuperAdminEffectivePermissions !== null) {
                 return $this->orgRbacMemoSuperAdminEffectivePermissions;
             }
@@ -418,6 +426,32 @@ trait HasOrgRbacRoles
             ->delete();
 
         $this->orgRbacForgetPermissionCache($tenant);
+    }
+
+    /**
+     * Compliance-oriented audit: once per request per tenant when a super admin resolves effective permissions.
+     */
+    protected function orgRbacAuditSuperAdminEffectivePermissionsContext(Tenant $tenant): void
+    {
+        if (! config('org-rbac.super_admin.audit_resolution', false)) {
+            return;
+        }
+
+        if (! OrgRbacLog::enabled()) {
+            return;
+        }
+
+        $id = (int) $tenant->getKey();
+        if (isset($this->orgRbacSuperAdminAuditedTenantIds[$id])) {
+            return;
+        }
+
+        $this->orgRbacSuperAdminAuditedTenantIds[$id] = true;
+
+        OrgRbacLog::info('super_admin_effective_permissions_context', [
+            'user_id' => $this->getKey(),
+            'tenant_id' => $tenant->getKey(),
+        ]);
     }
 
     protected function orgRbacIsSuperAdmin(): bool

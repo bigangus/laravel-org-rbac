@@ -29,6 +29,16 @@ Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Or
 | `ORG_RBAC_PERM_CACHE_USE_TAGS` | 默认 `true`（建议与 Redis 同用）。 |
 | `ORG_RBAC_LOG_ENABLED` | 默认 `true`；可 `false` 关闭包内结构化日志。 |
 | `ORG_RBAC_LOG_CHANNEL` | 非空时写入指定 Log channel。 |
+| `ORG_RBAC_ALLOW_TENANT_HEADER` | 默认 `false`。为 `true` 才允许从 HTTP Header 解析租户（须在网关剥离或仅内网使用）。 |
+| `ORG_RBAC_TENANT_HEADER_REQUIRES_AUTH` | 默认 `true`：未登录则忽略 Header。 |
+| `ORG_RBAC_SUPER_ADMIN_AUDIT` | 默认 `false`；为 `true` 时记录超管在各租户上下文的权限解析审计日志。 |
+| `ORG_RBAC_REDIS_STRICT_BOOT` | 默认 `true`；`false` 时缓存非 Redis 仅打日志不中断启动（不推荐生产）。 |
+
+## 0.7.x
+
+- **Header 租户 ID**：默认 **不** 从 Header 解析；需 `ORG_RBAC_ALLOW_TENANT_HEADER=true` 且建议配合 **已认证用户**（默认要求登录后才采纳 Header）。
+- **超管审计**：可选 `ORG_RBAC_SUPER_ADMIN_AUDIT=true`。
+- **Redis**：可选非严格启动（仅日志），见 `ORG_RBAC_REDIS_STRICT_BOOT`。
 
 ## 0.6.x
 

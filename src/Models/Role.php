@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 /**
  * Role is scoped to one node in the tenant tree (organisation / department / …).
  * Query with explicit scopes — no global BelongsToTenant scope (inheritance spans ancestors).
+ *
+ * @property int $id
+ * @property int $tenant_id
+ * @property string $guard_name
  */
 class Role extends Model
 {
@@ -48,7 +52,7 @@ class Role extends Model
     }
 
     /**
-     * @param  string|\Zhanghongfei\OrgRbac\Models\Permission  ...$permissions
+     * @param  string|Permission  ...$permissions
      */
     public function givePermissionTo(...$permissions): self
     {
@@ -66,7 +70,7 @@ class Role extends Model
     }
 
     /**
-     * @param  string|\Zhanghongfei\OrgRbac\Models\Permission  ...$permissions
+     * @param  string|Permission  ...$permissions
      */
     public function revokePermissionTo(...$permissions): self
     {
@@ -84,7 +88,7 @@ class Role extends Model
     }
 
     /**
-     * @param  array<int, string|\Zhanghongfei\OrgRbac\Models\Permission>  $permissions
+     * @param  array<int, string|Permission>  $permissions
      */
     public function syncPermissions(array $permissions): self
     {

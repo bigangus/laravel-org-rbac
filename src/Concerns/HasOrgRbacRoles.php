@@ -15,6 +15,20 @@ use Zhanghongfei\OrgRbac\Support\CurrentTenant;
 
 trait HasOrgRbacRoles
 {
+    /**
+     * 单次请求内缓存：超管有效权限（与租户无关，全表列）。
+     *
+     * @var Collection<int, Permission>|null
+     */
+    private $orgRbacMemoSuperAdminEffectivePermissions = null;
+
+    /**
+     * 单次请求内缓存：普通用户在某租户下的有效权限。
+     *
+     * @var array<int, Collection<int, Permission>>
+     */
+    private array $orgRbacMemoEffectivePermissionsByTenantId = [];
+
     public function orgRbacRoles(): MorphToMany
     {
         $pivot = config('org-rbac.tables.model_has_roles');
@@ -99,20 +113,56 @@ trait HasOrgRbacRoles
     public function orgRbacEffectivePermissions(Tenant $tenant): Collection
     {
         if ($this->orgRbacIsSuperAdmin()) {
-            return Permission::query()->get();
+            if ($this->orgRbacMemoSuperAdminEffectivePermissions !== null) {
+                return $this->orgRbacMemoSuperAdminEffectivePermissions;
+            }
+
+            $cols = config('org-rbac.super_admin.permission_columns', ['id', 'name', 'guard_name', 'tenant_id', 'group']);
+            if (! is_array($cols) || $cols === []) {
+                $cols = ['id', 'name', 'guard_name'];
+            }
+
+            $ttl = config('org-rbac.cache.permissions_ttl_minutes');
+
+            if ($ttl === null || (int) $ttl <= 0) {
+                return $this->orgRbacMemoSuperAdminEffectivePermissions = Permission::query()->get($cols);
+            }
+
+            $key = $this->orgRbacSuperAdminPermissionCacheKey();
+            $minutes = (int) $ttl;
+            $callback = fn () => Permission::query()->get($cols);
+
+            if (config('org-rbac.cache.use_tagged_permission_cache') && Cache::supportsTags()) {
+                $tags = (array) config('org-rbac.cache.permission_cache_tags', ['org-rbac-permissions']);
+
+                return $this->orgRbacMemoSuperAdminEffectivePermissions = Cache::tags($tags)->remember($key, now()->addMinutes($minutes), $callback);
+            }
+
+            return $this->orgRbacMemoSuperAdminEffectivePermissions = Cache::remember($key, now()->addMinutes($minutes), $callback);
+        }
+
+        $tenantId = (int) $tenant->getKey();
+        if (isset($this->orgRbacMemoEffectivePermissionsByTenantId[$tenantId])) {
+            return $this->orgRbacMemoEffectivePermissionsByTenantId[$tenantId];
         }
 
         $ttl = config('org-rbac.cache.permissions_ttl_minutes');
 
         if ($ttl === null || (int) $ttl <= 0) {
-            return $this->orgRbacResolveEffectivePermissions($tenant);
+            return $this->orgRbacMemoEffectivePermissionsByTenantId[$tenantId] = $this->orgRbacResolveEffectivePermissions($tenant);
         }
 
         $key = $this->orgRbacPermissionCacheKey($tenant);
+        $minutes = (int) $ttl;
+        $callback = fn () => $this->orgRbacResolveEffectivePermissions($tenant);
 
-        return Cache::remember($key, now()->addMinutes((int) $ttl), function () use ($tenant) {
-            return $this->orgRbacResolveEffectivePermissions($tenant);
-        });
+        if (config('org-rbac.cache.use_tagged_permission_cache') && Cache::supportsTags()) {
+            $tags = (array) config('org-rbac.cache.permission_cache_tags', ['org-rbac-permissions']);
+
+            return $this->orgRbacMemoEffectivePermissionsByTenantId[$tenantId] = Cache::tags($tags)->remember($key, now()->addMinutes($minutes), $callback);
+        }
+
+        return $this->orgRbacMemoEffectivePermissionsByTenantId[$tenantId] = Cache::remember($key, now()->addMinutes($minutes), $callback);
     }
 
     /**
@@ -132,7 +182,11 @@ trait HasOrgRbacRoles
 
     public function orgRbacForgetPermissionCache(Tenant $tenant): void
     {
-        Cache::forget($this->orgRbacPermissionCacheKey($tenant));
+        $this->forgetOrgRbacPermissionCacheKey($this->orgRbacPermissionCacheKey($tenant));
+        $this->forgetOrgRbacPermissionCacheKey($this->orgRbacSuperAdminPermissionCacheKey());
+
+        unset($this->orgRbacMemoEffectivePermissionsByTenantId[(int) $tenant->getKey()]);
+        $this->orgRbacMemoSuperAdminEffectivePermissions = null;
     }
 
     protected function orgRbacPermissionCacheKey(Tenant $tenant): string
@@ -140,6 +194,28 @@ trait HasOrgRbacRoles
         $prefix = (string) config('org-rbac.cache.permission_key_prefix', 'org-rbac.perm.');
 
         return sprintf('%s%s.%s.%s', $prefix, class_basename($this), $this->getKey(), $tenant->getKey());
+    }
+
+    /**
+     * 超管有效权限缓存键（不按租户分片，避免同一全表结果重复占用缓存）。
+     */
+    protected function orgRbacSuperAdminPermissionCacheKey(): string
+    {
+        $prefix = (string) config('org-rbac.cache.permission_key_prefix', 'org-rbac.perm.');
+
+        return sprintf('%ssuper.%s.%s', $prefix, class_basename($this), $this->getKey());
+    }
+
+    protected function forgetOrgRbacPermissionCacheKey(string $key): void
+    {
+        if (config('org-rbac.cache.use_tagged_permission_cache') && Cache::supportsTags()) {
+            $tags = (array) config('org-rbac.cache.permission_cache_tags', ['org-rbac-permissions']);
+            Cache::tags($tags)->forget($key);
+
+            return;
+        }
+
+        Cache::forget($key);
     }
 
     /**
@@ -288,6 +364,7 @@ trait HasOrgRbacRoles
     public function syncOrgRbacRolesInTenant(array $roles, Tenant $tenant, DataScope|string|null $defaultDataScope = null): void
     {
         $pivot = config('org-rbac.tables.model_has_roles');
+        $roleModel = config('org-rbac.models.role');
 
         DB::table($pivot)
             ->where('model_type', $this->getMorphClass())
@@ -295,9 +372,27 @@ trait HasOrgRbacRoles
             ->where('tenant_id', $tenant->id)
             ->delete();
 
-        foreach ($roles as $role) {
-            $this->assignOrgRbacRoleInTenant($role, $tenant, $defaultDataScope);
+        if ($roles !== []) {
+            $scopeValue = $this->orgRbacResolveAssignDataScopeValue($defaultDataScope);
+            $payload = [];
+
+            foreach ($roles as $role) {
+                $roleInstance = is_object($role) && is_a($role, $roleModel, true)
+                    ? $role
+                    : $roleModel::query()->where('name', $role)->where('tenant_id', $tenant->id)->firstOrFail();
+
+                $payload[$roleInstance->id] = [
+                    'tenant_id' => $tenant->id,
+                    'data_scope' => $scopeValue,
+                    'assigned_at' => now(),
+                    'assigned_by' => auth()->id(),
+                ];
+            }
+
+            $this->orgRbacRoles()->syncWithoutDetaching($payload);
         }
+
+        $this->orgRbacForgetPermissionCache($tenant);
     }
 
     public function joinOrgRbacTenant(Tenant $tenant, bool $asOwner = false): void

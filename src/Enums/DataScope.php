@@ -2,8 +2,10 @@
 
 namespace Zhanghongfei\OrgRbac\Enums;
 
+use Zhanghongfei\OrgRbac\Support\TenantDataScope;
+
 /**
- * Row-level data scope. Wider scope sees more rows (when applied via {@see \Zhanghongfei\OrgRbac\Support\TenantDataScope}).
+ * Row-level data scope. Wider scope sees more rows (when applied via {@see TenantDataScope}).
  *
  * Order: Self &lt; Department &lt; Subtree &lt; Tenant.
  */

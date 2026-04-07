@@ -9,9 +9,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Foundation\Auth\User;
 use Zhanghongfei\OrgRbac\Enums\TenantType;
 use Zhanghongfei\OrgRbac\Events\TenantReparented;
 
+/**
+ * @property int $id
+ * @property int|null $parent_id
+ * @property string $name
+ * @property string $slug
+ * @property int $depth
+ * @property string|null $path
+ */
 class Tenant extends Model
 {
     use SoftDeletes;
@@ -128,7 +137,7 @@ class Tenant extends Model
                 ->chunkById(200, function (Collection $rows) use ($oldPath, $newPath): void {
                     foreach ($rows as $desc) {
                         /** @var Tenant $desc */
-                        $desc->path = $newPath . substr($desc->path, strlen($oldPath));
+                        $desc->path = $newPath.substr($desc->path, strlen($oldPath));
                         $desc->depth = substr_count($desc->path, '/');
                         $desc->saveQuietly();
                     }
@@ -178,7 +187,7 @@ class Tenant extends Model
     }
 
     /**
-     * @param  class-string<\Illuminate\Foundation\Auth\User>  $userModel
+     * @param  class-string<User>  $userModel
      */
     public function members(string $userModel): BelongsToMany
     {
@@ -190,7 +199,7 @@ class Tenant extends Model
     /**
      * All descendant tenants — typically one indexed query on `path`.
      *
-     * @return Collection<int, Tenant>
+     * @return Collection<int, static>
      */
     public function descendants(): Collection
     {
@@ -206,7 +215,7 @@ class Tenant extends Model
     }
 
     /**
-     * @return Collection<int, Tenant>
+     * @return Collection<int, static>
      */
     public function ancestors(): Collection
     {
@@ -226,7 +235,7 @@ class Tenant extends Model
     }
 
     /**
-     * @return Collection<int, Tenant>
+     * @return Collection<int, static>
      */
     public function breadcrumb(): Collection
     {
@@ -234,7 +243,7 @@ class Tenant extends Model
     }
 
     /**
-     * @return Collection<int, Tenant>
+     * @return Collection<int, static>
      */
     public function siblings(): Collection
     {

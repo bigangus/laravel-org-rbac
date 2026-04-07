@@ -2,9 +2,10 @@
 
 namespace Zhanghongfei\OrgRbac\Support;
 
+use Zhanghongfei\OrgRbac\Contracts\CurrentTenantContract;
 use Zhanghongfei\OrgRbac\Models\Tenant;
 
-class CurrentTenant
+class CurrentTenant implements CurrentTenantContract
 {
     protected ?Tenant $tenant = null;
 

@@ -4,11 +4,53 @@ Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Or
 
 **环境**：`illuminate/*` 需 `^12.0` 或 `^13.0`。Laravel 13 需 **PHP ≥ 8.3**。
 
+## 适用范围（重要）
+
+本包面向 **从零搭建的 Laravel 项目（greenfield）**：按本包迁移建表、在应用生命周期内以 **Redis 作为默认缓存** 为前提。若你已有存量用户/RBAC/多租户方案，或需与 Spatie 等包长期并存，**必须自行评估迁移与数据双写**；本仓库**不承诺**无痛接入复杂旧系统。
+
+## 生产环境前置条件
+
+- **Redis 缓存**：请设置 `CACHE_STORE=redis`（或等价配置）。自 **0.6** 起，默认 `ORG_RBAC_REQUIRE_REDIS_CACHE=true`，应用启动时若默认缓存 **不是** `Illuminate\Cache\RedisStore` 将 **抛出异常**。  
+  - **PHPUnit**：框架 `runningUnitTests()` 下会跳过该检查；`phpunit.xml` 已示例设置 `ORG_RBAC_REQUIRE_REDIS_CACHE=false`。  
+  - **本地无 Redis**：可临时 `.env` 设 `ORG_RBAC_REQUIRE_REDIS_CACHE=false`（**不推荐用于生产**）。
+- **Tag 失效**：默认 `ORG_RBAC_PERM_CACHE_USE_TAGS=true`，与 Redis 搭配可在租户树变更时按 tag 清理权限缓存（避免依赖 SCAN）。
+
+## 日志与合规
+
+- 包内使用 **`OrgRbacLog`**（受 `config('org-rbac.logging')` 控制），日志上下文带 **`org_rbac => true`**，可路由到独立 channel（如 `ORG_RBAC_LOG_CHANNEL=stack` 或专用 daily 文件）。
+- **审计、留存、渗透与认证**：见根目录 **`SECURITY.md`**（文档级实践说明，**不构成法律或认证结论**；正式合规需贵司法务/安全团队与持证机构定稿）。
+
+### 常用环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `CACHE_STORE` | 生产请为 `redis`。 |
+| `ORG_RBAC_REQUIRE_REDIS_CACHE` | 默认 `true`；仅测试/无 Redis 开发机可 `false`。 |
+| `ORG_RBAC_PERM_CACHE_USE_TAGS` | 默认 `true`（建议与 Redis 同用）。 |
+| `ORG_RBAC_LOG_ENABLED` | 默认 `true`；可 `false` 关闭包内结构化日志。 |
+| `ORG_RBAC_LOG_CHANNEL` | 非空时写入指定 Log channel。 |
+
+## 0.6.x
+
+- **强制 Redis**：非 PHPUnit 且 `require_redis=true` 时，启动期校验默认缓存为 Redis。
+- **日志**：`OrgRbacLog`；租户解析失败/成功（debug）、租户重绑、权限缓存 flush（tag/SCAN）等可观测性。
+- **测试**：补充 Resolver、中间件、HTTP 路由解析、超管有效权限、`RedisCacheRequirement` 等用例。
+- **定位**：文档明确 **仅建议全新项目**；合规与审计见 `SECURITY.md`。
+
+## 0.5.x
+
+- **Artisan**：`php artisan org-rbac:repair-tenant-paths`（修复 `depth`/`path` 不一致）、`php artisan org-rbac:clear-permission-cache`（清空本包权限缓存）。
+- **权限缓存**：可选 **`cache.use_tagged_permission_cache`**（需支持 tag 的 store）；否则在 Redis 上使用 **SCAN** 按前缀删键。详见 `config/org-rbac.php`。
+- **超管**：`super_admin.permission_columns` 控制加载权限列，避免 `SELECT *`；在启用 TTL 时对该结果做 **每用户一条** 的缓存（键前缀含 `super.`，不按租户重复），且 **单次请求内 memo**。
+- **`syncOrgRbacRolesInTenant`**：批量写入 pivot 后 **只失效一次** 权限缓存。
+- **契约**：`CurrentTenantContract` 已在容器绑定到 `CurrentTenant`。
+- **安全说明**：见仓库根目录 **`SECURITY.md`**（Header 租户解析信任边界、超管与 Policy）。
+
 ## 0.4.x
 
 - **多角色 `data_scope` 取最宽**：`DataScope::widest()` / `widestFromStrings()`、`DataScopeMerger`，以及 `User::orgRbacWidestDataScopeForTenant($tenant)`；列表查询可用 `TenantDataScope::applyUsingWidestRoleScopeForUser(...)`。
 - **分配角色默认写入 `data_scope`**：`assignOrgRbacRoleInTenant($role, $tenant, $scope?)` 未传时使用配置 `defaults.assign_role_data_scope`（默认 `department`）；`syncOrgRbacRolesInTenant` 第三参数为同一默认。
-- **租户移动**：派发 **`TenantReparented`**；若 **`cache.default` 为 `redis`**，包内监听器会按前缀删除 **`cache.permission_key_prefix`**（默认 `org-rbac.perm.`）下的权限缓存键；非 Redis 缓存驱动仅记 debug 日志，请仍监听事件清理业务缓存。
+- **租户移动**：派发 **`TenantReparented`**；监听器 **`FlushOrgRbacPermissionCacheOnTenantReparented`** 会调用 **`OrgRbacCache::flushAfterTenantReparent()`**（tag 或 Redis 前缀 SCAN）。非 Redis / 无 tag 时行为见 `OrgRbacCache` 与日志。
 
 ## 0.3.x 变更（相对 0.2）
 

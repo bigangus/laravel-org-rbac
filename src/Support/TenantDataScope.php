@@ -5,6 +5,7 @@ namespace Zhanghongfei\OrgRbac\Support;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use InvalidArgumentException;
+use Zhanghongfei\OrgRbac\Concerns\HasOrgRbacRoles;
 use Zhanghongfei\OrgRbac\Enums\DataScope;
 use Zhanghongfei\OrgRbac\Models\Tenant;
 
@@ -19,13 +20,13 @@ use Zhanghongfei\OrgRbac\Models\Tenant;
 final class TenantDataScope
 {
     /**
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @param  Builder<Model>  $query
      * @param  string  $tenantColumn  Business column name (usually {@code tenant_id})
      * @param  Tenant  $context  Current tenant node (e.g. from {@see CurrentTenant})
      * @param  Tenant|null  $organisationRoot  Force org root for {@see DataScope::Tenant}; if null, uses {@see Tenant::nearestOrganisationAncestor()} or {@see Tenant::rootAncestor()}
      * @param  string|null  $ownerColumn  For {@see DataScope::Self}: e.g. {@code user_id} / {@code created_by}
      * @param  int|string|null  $ownerId  Current user id when using owner column
-     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     * @return Builder<Model>
      */
     public static function apply(
         Builder $query,
@@ -37,16 +38,16 @@ final class TenantDataScope
         int|string|null $ownerId = null,
     ): Builder {
         return match ($scope) {
-            DataScope::Self => static::applySelf($query, $tenantColumn, $context, $ownerColumn, $ownerId),
+            DataScope::Self => self::applySelf($query, $tenantColumn, $context, $ownerColumn, $ownerId),
             DataScope::Department => $query->where($tenantColumn, $context->id),
             DataScope::Subtree => $query->whereIn($tenantColumn, $context->subtreeIds()),
-            DataScope::Tenant => static::applyTenant($query, $tenantColumn, $context, $organisationRoot),
+            DataScope::Tenant => self::applyTenant($query, $tenantColumn, $context, $organisationRoot),
         };
     }
 
     /**
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     * @param  Builder<Model>  $query
+     * @return Builder<Model>
      */
     public static function applyFromString(
         Builder $query,
@@ -59,17 +60,16 @@ final class TenantDataScope
     ): Builder {
         $scope = DataScope::tryFrom($scopeValue) ?? DataScope::Department;
 
-        return static::apply($query, $tenantColumn, $scope, $context, $organisationRoot, $ownerColumn, $ownerId);
+        return self::apply($query, $tenantColumn, $scope, $context, $organisationRoot, $ownerColumn, $ownerId);
     }
 
     /**
-     * Uses {@see \Zhanghongfei\OrgRbac\Concerns\HasOrgRbacRoles::orgRbacWidestDataScopeForTenant()} to pick scope (widest wins).
+     * Uses {@see HasOrgRbacRoles::orgRbacWidestDataScopeForTenant()} to pick scope (widest wins).
      * If no pivot scopes are set, defaults to {@see DataScope::Department}.
      *
-     * @param  Model  $user  Must use {@see \Zhanghongfei\OrgRbac\Concerns\HasOrgRbacRoles}
-     *
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     * @param  Model  $user  Must use {@see HasOrgRbacRoles}
+     * @param  Builder<Model>  $query
+     * @return Builder<Model>
      */
     public static function applyUsingWidestRoleScopeForUser(
         Builder $query,
@@ -86,12 +86,12 @@ final class TenantDataScope
 
         $scope = $user->orgRbacWidestDataScopeForTenant($context) ?? DataScope::Department;
 
-        return static::apply($query, $tenantColumn, $scope, $context, $organisationRoot, $ownerColumn, $ownerId);
+        return self::apply($query, $tenantColumn, $scope, $context, $organisationRoot, $ownerColumn, $ownerId);
     }
 
     /**
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     * @param  Builder<Model>  $query
+     * @return Builder<Model>
      */
     protected static function applySelf(
         Builder $query,
@@ -110,8 +110,8 @@ final class TenantDataScope
     }
 
     /**
-     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
-     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     * @param  Builder<Model>  $query
+     * @return Builder<Model>
      */
     protected static function applyTenant(
         Builder $query,

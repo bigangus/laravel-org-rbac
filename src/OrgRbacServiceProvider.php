@@ -4,14 +4,19 @@ namespace Zhanghongfei\OrgRbac;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Zhanghongfei\OrgRbac\Console\ClearOrgRbacPermissionCacheCommand;
+use Zhanghongfei\OrgRbac\Console\RepairTenantPathsCommand;
+use Zhanghongfei\OrgRbac\Contracts\CurrentTenantContract;
 use Zhanghongfei\OrgRbac\Contracts\TenantResolver;
 use Zhanghongfei\OrgRbac\Events\TenantReparented;
 use Zhanghongfei\OrgRbac\Listeners\FlushOrgRbacPermissionCacheOnTenantReparented;
 use Zhanghongfei\OrgRbac\Middleware\EnsureTenant;
 use Zhanghongfei\OrgRbac\Scopes\TenantScope;
 use Zhanghongfei\OrgRbac\Support\CurrentTenant;
+use Zhanghongfei\OrgRbac\Support\RedisCacheRequirement;
 use Zhanghongfei\OrgRbac\Support\RequestTenantResolver;
 
 class OrgRbacServiceProvider extends ServiceProvider
@@ -21,6 +26,8 @@ class OrgRbacServiceProvider extends ServiceProvider
         $this->mergeConfigFrom(__DIR__.'/../config/org-rbac.php', 'org-rbac');
 
         $this->app->singleton(CurrentTenant::class, fn () => new CurrentTenant);
+
+        $this->app->singleton(CurrentTenantContract::class, fn (Application $app) => $app->make(CurrentTenant::class));
 
         $this->app->singleton(TenantScope::class, function (Application $app) {
             return new TenantScope($app->make(CurrentTenant::class));
@@ -33,6 +40,10 @@ class OrgRbacServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (config('org-rbac.cache.require_redis', true) && ! $this->app->runningUnitTests()) {
+            RedisCacheRequirement::assertDefaultStore(Cache::driver()->getStore());
+        }
+
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         $this->publishes([
@@ -50,5 +61,12 @@ class OrgRbacServiceProvider extends ServiceProvider
         $router->aliasMiddleware($alias, EnsureTenant::class);
 
         Event::listen(TenantReparented::class, FlushOrgRbacPermissionCacheOnTenantReparented::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                RepairTenantPathsCommand::class,
+                ClearOrgRbacPermissionCacheCommand::class,
+            ]);
+        }
     }
 }

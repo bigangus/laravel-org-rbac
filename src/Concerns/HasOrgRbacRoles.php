@@ -137,7 +137,30 @@ trait HasOrgRbacRoles
 
     protected function orgRbacPermissionCacheKey(Tenant $tenant): string
     {
-        return sprintf('org-rbac.perm.%s.%s.%s', class_basename($this), $this->getKey(), $tenant->getKey());
+        $prefix = (string) config('org-rbac.cache.permission_key_prefix', 'org-rbac.perm.');
+
+        return sprintf('%s%s.%s.%s', $prefix, class_basename($this), $this->getKey(), $tenant->getKey());
+    }
+
+    /**
+     * Pivot `data_scope` string for role assignment (default from config when null).
+     */
+    protected function orgRbacResolveAssignDataScopeValue(DataScope|string|null $dataScope): string
+    {
+        if ($dataScope instanceof DataScope) {
+            return $dataScope->value;
+        }
+
+        if (is_string($dataScope) && $dataScope !== '') {
+            $try = DataScope::tryFrom($dataScope);
+
+            return $try !== null ? $try->value : DataScope::Department->value;
+        }
+
+        $default = (string) config('org-rbac.defaults.assign_role_data_scope', 'department');
+        $try = DataScope::tryFrom($default);
+
+        return $try !== null ? $try->value : DataScope::Department->value;
     }
 
     /**
@@ -220,7 +243,7 @@ trait HasOrgRbacRoles
             ->exists();
     }
 
-    public function assignOrgRbacRoleInTenant(Role|string $role, Tenant $tenant): void
+    public function assignOrgRbacRoleInTenant(Role|string $role, Tenant $tenant, DataScope|string|null $dataScope = null): void
     {
         $roleModel = config('org-rbac.models.role');
 
@@ -228,9 +251,12 @@ trait HasOrgRbacRoles
             ? $role
             : $roleModel::query()->where('name', $role)->where('tenant_id', $tenant->id)->firstOrFail();
 
+        $scopeValue = $this->orgRbacResolveAssignDataScopeValue($dataScope);
+
         $this->orgRbacRoles()->syncWithoutDetaching([
             $role->id => [
                 'tenant_id' => $tenant->id,
+                'data_scope' => $scopeValue,
                 'assigned_at' => now(),
                 'assigned_by' => auth()->id(),
             ],
@@ -259,7 +285,7 @@ trait HasOrgRbacRoles
         $this->orgRbacForgetPermissionCache($tenant);
     }
 
-    public function syncOrgRbacRolesInTenant(array $roles, Tenant $tenant): void
+    public function syncOrgRbacRolesInTenant(array $roles, Tenant $tenant, DataScope|string|null $defaultDataScope = null): void
     {
         $pivot = config('org-rbac.tables.model_has_roles');
 
@@ -270,7 +296,7 @@ trait HasOrgRbacRoles
             ->delete();
 
         foreach ($roles as $role) {
-            $this->assignOrgRbacRoleInTenant($role, $tenant);
+            $this->assignOrgRbacRoleInTenant($role, $tenant, $defaultDataScope);
         }
     }
 

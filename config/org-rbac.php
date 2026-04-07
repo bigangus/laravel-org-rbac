@@ -32,6 +32,17 @@ return [
     */
     'cache' => [
         'permissions_ttl_minutes' => env('ORG_RBAC_PERMISSION_CACHE_TTL', 10),
+        'permission_key_prefix' => env('ORG_RBAC_PERMISSION_KEY_PREFIX', 'org-rbac.perm.'),
+        'flush_permission_cache_on_tenant_reparent' => env('ORG_RBAC_FLUSH_PERM_CACHE_ON_REPARENT', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Defaults
+    |--------------------------------------------------------------------------
+    */
+    'defaults' => [
+        'assign_role_data_scope' => env('ORG_RBAC_DEFAULT_ASSIGN_SCOPE', 'department'),
     ],
 
     /*

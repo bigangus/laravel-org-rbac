@@ -4,8 +4,11 @@ namespace Zhanghongfei\OrgRbac;
 
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Zhanghongfei\OrgRbac\Contracts\TenantResolver;
+use Zhanghongfei\OrgRbac\Events\TenantReparented;
+use Zhanghongfei\OrgRbac\Listeners\FlushOrgRbacPermissionCacheOnTenantReparented;
 use Zhanghongfei\OrgRbac\Middleware\EnsureTenant;
 use Zhanghongfei\OrgRbac\Scopes\TenantScope;
 use Zhanghongfei\OrgRbac\Support\CurrentTenant;
@@ -45,5 +48,7 @@ class OrgRbacServiceProvider extends ServiceProvider
         /** @var Router $router */
         $router = $this->app->make(Router::class);
         $router->aliasMiddleware($alias, EnsureTenant::class);
+
+        Event::listen(TenantReparented::class, FlushOrgRbacPermissionCacheOnTenantReparented::class);
     }
 }

@@ -1,6 +1,8 @@
 # laravel-org-rbac
 
-Laravel 12 多租户、层级组织 + RBAC 包：**Platform → Organization（tenant）→ Department → Roles → Users → Permissions**。
+Laravel **12.x / 13.x** 多租户、层级组织 + RBAC 包：**Platform → Organization（tenant）→ Department → Roles → Users → Permissions**。
+
+**环境**：`illuminate/*` 需 `^12.0` 或 `^13.0`。使用 **Laravel 13** 时要求 **PHP ≥ 8.3**（框架要求）；仅使用 Laravel 12 时可为 PHP 8.2。
 
 - **单库 + `tenant_id`** 行级隔离，Eloquent `TenantScope` 自动约束。
 - **权限目录**为全局表 `permissions`；租户隔离通过 **角色（带 `tenant_id`）** 与 **用户-角色分配（pivot 带 `tenant_id`）** 实现。

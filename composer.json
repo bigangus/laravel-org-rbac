@@ -1,6 +1,6 @@
 {
     "name": "zhanghongfei/laravel-org-rbac",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Laravel 12 / 13 multi-tenant hierarchical RBAC: unified tenant tree, roles, permissions, membership",
     "type": "library",
     "license": "MIT",

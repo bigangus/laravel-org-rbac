@@ -3,6 +3,8 @@
 namespace Zhanghongfei\OrgRbac\Support;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use InvalidArgumentException;
 use Zhanghongfei\OrgRbac\Enums\DataScope;
 use Zhanghongfei\OrgRbac\Models\Tenant;
 
@@ -56,6 +58,33 @@ final class TenantDataScope
         int|string|null $ownerId = null,
     ): Builder {
         $scope = DataScope::tryFrom($scopeValue) ?? DataScope::Department;
+
+        return static::apply($query, $tenantColumn, $scope, $context, $organisationRoot, $ownerColumn, $ownerId);
+    }
+
+    /**
+     * Uses {@see \Zhanghongfei\OrgRbac\Concerns\HasOrgRbacRoles::orgRbacWidestDataScopeForTenant()} to pick scope (widest wins).
+     * If no pivot scopes are set, defaults to {@see DataScope::Department}.
+     *
+     * @param  Model  $user  Must use {@see \Zhanghongfei\OrgRbac\Concerns\HasOrgRbacRoles}
+     *
+     * @param  Builder<\Illuminate\Database\Eloquent\Model>  $query
+     * @return Builder<\Illuminate\Database\Eloquent\Model>
+     */
+    public static function applyUsingWidestRoleScopeForUser(
+        Builder $query,
+        string $tenantColumn,
+        Model $user,
+        Tenant $context,
+        ?Tenant $organisationRoot = null,
+        ?string $ownerColumn = null,
+        int|string|null $ownerId = null,
+    ): Builder {
+        if (! method_exists($user, 'orgRbacWidestDataScopeForTenant')) {
+            throw new InvalidArgumentException('User model must use HasOrgRbacRoles (orgRbacWidestDataScopeForTenant).');
+        }
+
+        $scope = $user->orgRbacWidestDataScopeForTenant($context) ?? DataScope::Department;
 
         return static::apply($query, $tenantColumn, $scope, $context, $organisationRoot, $ownerColumn, $ownerId);
     }

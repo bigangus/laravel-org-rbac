@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Zhanghongfei\OrgRbac\Enums\DataScope;
 use Zhanghongfei\OrgRbac\Models\Permission;
 use Zhanghongfei\OrgRbac\Models\Role;
 use Zhanghongfei\OrgRbac\Models\Tenant;
@@ -74,6 +75,20 @@ trait HasOrgRbacRoles
             ->wherePivotIn('tenant_id', $tenantIds)
             ->with('permissions')
             ->get();
+    }
+
+    /**
+     * Widest {@see DataScope} among inherited role pivots (`data_scope`) for this context.
+     * Direct permission grants do not carry a data scope and are not included.
+     * When every pivot has empty `data_scope`, returns null — callers typically default to {@see DataScope::Department}.
+     */
+    public function orgRbacWidestDataScopeForTenant(Tenant $tenant): ?DataScope
+    {
+        $raw = $this->orgRbacInheritedRolesForTenant($tenant)
+            ->map(fn (Role $role) => $role->pivot->data_scope ?? null)
+            ->all();
+
+        return DataScope::widestFromStrings(...$raw);
     }
 
     /**

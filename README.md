@@ -4,6 +4,11 @@ Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Or
 
 **环境**：`illuminate/*` 需 `^12.0` 或 `^13.0`。Laravel 13 需 **PHP ≥ 8.3**。
 
+## 0.4.x
+
+- **多角色 `data_scope` 取最宽**：`DataScope::widest()` / `widestFromStrings()`、`DataScopeMerger`，以及 `User::orgRbacWidestDataScopeForTenant($tenant)`；列表查询可用 `TenantDataScope::applyUsingWidestRoleScopeForUser(...)`。
+- **租户移动事件**：修改 `parent_id` 并在库内更新完 `path` / 子孙后派发 **`Zhanghongfei\OrgRbac\Events\TenantReparented`**（含 `oldPath` / `newPath` / 新旧 `parent_id`），用于失效缓存或业务侧按旧路径清理。
+
 ## 0.3.x 变更（相对 0.2）
 
 - **移除**独立 `departments` 表：组织/部门/团队均为 `tenants` 树节点（`parent_id`、`type`、`path`、`depth`）。
@@ -83,7 +88,41 @@ $query = Post::query();
 TenantDataScope::apply($query, 'tenant_id', DataScope::Subtree, $tenant);
 ```
 
-多角色、多 `data_scope` 时，在应用层合并为 **最宽** 或 **最严** 策略后再调用一次即可。
+### 多角色 `data_scope`：取最宽
+
+继承链上多条角色、各自 pivot 上有 `data_scope` 时，**最宽**顺序为：`Self` &lt; `Department` &lt; `Subtree` &lt; `Tenant`。
+
+```php
+use Zhanghongfei\OrgRbac\Enums\DataScope;
+use Zhanghongfei\OrgRbac\Support\DataScopeMerger;
+use Zhanghongfei\OrgRbac\Support\TenantDataScope;
+
+$scope = $user->orgRbacWidestDataScopeForTenant($tenant) ?? DataScope::Department;
+TenantDataScope::apply($query, 'tenant_id', $scope, $tenant);
+
+// 或一行（默认 pivot 全空时按 Department）
+TenantDataScope::applyUsingWidestRoleScopeForUser($query, 'tenant_id', $user, $tenant);
+```
+
+也可使用 `DataScope::widestFromStrings(...)` / `DataScopeMerger::widest(...)`。
+
+### 组织树移动与缓存 / 业务失效
+
+修改某节点的 `parent_id` 后，库会更新该节点及子孙的 `path` / `depth`，并派发 **`TenantReparented`**。请在应用里监听该事件，**失效**依赖 `tenant_id` 或旧 `path` 的缓存（例如本包权限缓存键 `org-rbac.perm.*`、你方业务 Redis 键），避免「静默脏读」。
+
+```php
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
+use Zhanghongfei\OrgRbac\Events\TenantReparented;
+
+// AppServiceProvider::boot() 等
+Event::listen(TenantReparented::class, function (TenantReparented $e) {
+    // 示例：按前缀清理（键名需与你实际一致）
+    // Cache::tags(['tenant', $e->tenant->id])->flush(); // 若使用 tag
+});
+```
+
+移动会影响子树内所有 `tenant_id` 的语义，凡按「路径前缀」或「整棵子树」缓存的数据都应随事件重建或清除。
 
 ## License
 

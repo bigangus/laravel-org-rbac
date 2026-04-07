@@ -10,17 +10,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Zhanghongfei\OrgRbac\Enums\TenantType;
+use Zhanghongfei\OrgRbac\Events\TenantReparented;
 
 class Tenant extends Model
 {
     use SoftDeletes;
 
     /**
-     * When {@see parent_id} changes, we stash the old materialized path to rewrite descendant rows after save.
+     * When {@see parent_id} changes, stash old path + parent for descendant rewrite and {@see TenantReparented}.
      *
-     * @var array<int, string>
+     * @var array<int, array{old_path: string, old_parent_id: int|null}>
      */
-    protected static array $orgRbacPathBeforeParentChange = [];
+    protected static array $orgRbacReparentMeta = [];
 
     protected $fillable = [
         'parent_id',
@@ -100,18 +101,22 @@ class Tenant extends Model
                 ? $parent->path.'/'.$tenant->id
                 : (string) $tenant->id;
 
-            static::$orgRbacPathBeforeParentChange[$tenant->getKey()] = $oldPath;
+            static::$orgRbacReparentMeta[$tenant->getKey()] = [
+                'old_path' => $oldPath,
+                'old_parent_id' => $tenant->getOriginal('parent_id'),
+            ];
         });
 
         static::updated(function (Tenant $tenant): void {
             $id = $tenant->getKey();
-            if (! isset(static::$orgRbacPathBeforeParentChange[$id])) {
+            if (! isset(static::$orgRbacReparentMeta[$id])) {
                 return;
             }
 
-            $oldPath = static::$orgRbacPathBeforeParentChange[$id];
-            unset(static::$orgRbacPathBeforeParentChange[$id]);
+            $meta = static::$orgRbacReparentMeta[$id];
+            unset(static::$orgRbacReparentMeta[$id]);
 
+            $oldPath = $meta['old_path'];
             $newPath = $tenant->path;
             if ($newPath === null || $oldPath === $newPath) {
                 return;
@@ -128,6 +133,14 @@ class Tenant extends Model
                         $desc->saveQuietly();
                     }
                 });
+
+            event(new TenantReparented(
+                $tenant,
+                $oldPath,
+                $newPath,
+                $meta['old_parent_id'],
+                $tenant->parent_id,
+            ));
         });
     }
 

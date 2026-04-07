@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.1
+
+### Changed
+
+- **默认不再强制 Redis**：`org-rbac.cache.require_redis` / `ORG_RBAC_REQUIRE_REDIS_CACHE` 默认改为 **`false`**。`file` / `database` / `array` 等驱动可直接使用；生产仍 **推荐** Redis（tag、SCAN 清前缀）。若需启动期硬校验，设 `ORG_RBAC_REQUIRE_REDIS_CACHE=true`。
+- **`RedisCacheRequirement` 异常文案**：明确为可选加固项，并提示可关闭强制。
+
 ## 0.7.0
 
 ### Security（破坏性变更）

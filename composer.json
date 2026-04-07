@@ -1,6 +1,6 @@
 {
     "name": "zhanghongfei/laravel-org-rbac",
-    "version": "0.7.0",
+    "version": "0.7.1",
     "description": "Laravel 12 / 13 greenfield multi-tenant hierarchical RBAC (Redis cache, audit-friendly logs): tenant tree, roles, permissions",
     "type": "library",
     "license": "MIT",

@@ -27,7 +27,7 @@
 
 权限有效结果可缓存（TTL、前缀、可选 tag）。在共享 Redis 等多租户共用缓存前缀的场景下，请使用应用级缓存键前缀隔离；启用 tag 时需使用支持 tag 的缓存驱动。
 
-自 **0.6** 起，生产环境默认要求 **默认缓存驱动为 Redis**（`Illuminate\Cache\RedisStore`），以便权限缓存失效路径（tag flush 或 SCAN）行为可预期。
+可选在配置中开启 **`ORG_RBAC_REQUIRE_REDIS_CACHE=true`**，在启动时强制 **默认缓存驱动为 Redis**（`Illuminate\Cache\RedisStore`），使权限缓存失效路径（tag flush 或 SCAN）行为可预期。未开启时允许使用其他缓存驱动，但租户重绑等场景下需自行处理缓存一致性（见包内 `OrgRbacCache` 与 README）。
 
 ## 审计日志（建议）
 

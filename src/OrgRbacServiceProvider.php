@@ -42,7 +42,7 @@ class OrgRbacServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        if (config('org-rbac.cache.require_redis', true) && ! $this->app->runningUnitTests()) {
+        if (config('org-rbac.cache.require_redis', false) && ! $this->app->runningUnitTests()) {
             try {
                 RedisCacheRequirement::assertDefaultStore(Cache::driver()->getStore());
             } catch (RuntimeException $e) {

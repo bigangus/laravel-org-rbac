@@ -18,9 +18,9 @@ final class RedisCacheRequirement
 
         if (! $store instanceof RedisStore) {
             throw new RuntimeException(
-                'laravel-org-rbac requires the default cache store to use Redis (Illuminate\\Cache\\RedisStore). '.
-                'Set CACHE_STORE=redis and configure a Redis connection. '.
-                'In PHPUnit / local non-Redis environments set ORG_RBAC_REQUIRE_REDIS_CACHE=false in .env or phpunit.xml.'
+                'laravel-org-rbac: org-rbac.cache.require_redis is enabled but the default cache store is not Redis '.
+                '(Illuminate\\Cache\\RedisStore). Set CACHE_STORE=redis, or set ORG_RBAC_REQUIRE_REDIS_CACHE=false '.
+                'to allow other cache drivers (see config/org-rbac.php).'
             );
         }
     }

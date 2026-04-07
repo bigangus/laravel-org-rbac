@@ -6,14 +6,13 @@ Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Or
 
 ## 适用范围（重要）
 
-本包面向 **从零搭建的 Laravel 项目（greenfield）**：按本包迁移建表、在应用生命周期内以 **Redis 作为默认缓存** 为前提。若你已有存量用户/RBAC/多租户方案，或需与 Spatie 等包长期并存，**必须自行评估迁移与数据双写**；本仓库**不承诺**无痛接入复杂旧系统。
+本包面向 **从零搭建的 Laravel 项目（greenfield）**：按本包迁移建表。若你已有存量用户/RBAC/多租户方案，或需与 Spatie 等包长期并存，**必须自行评估迁移与数据双写**；本仓库**不承诺**无痛接入复杂旧系统。
 
-## 生产环境前置条件
+## 缓存与 Redis（可选强制）
 
-- **Redis 缓存**：请设置 `CACHE_STORE=redis`（或等价配置）。自 **0.6** 起，默认 `ORG_RBAC_REQUIRE_REDIS_CACHE=true`，应用启动时若默认缓存 **不是** `Illuminate\Cache\RedisStore` 将 **抛出异常**。  
-  - **PHPUnit**：框架 `runningUnitTests()` 下会跳过该检查；`phpunit.xml` 已示例设置 `ORG_RBAC_REQUIRE_REDIS_CACHE=false`。  
-  - **本地无 Redis**：可临时 `.env` 设 `ORG_RBAC_REQUIRE_REDIS_CACHE=false`（**不推荐用于生产**）。
-- **Tag 失效**：默认 `ORG_RBAC_PERM_CACHE_USE_TAGS=true`，与 Redis 搭配可在租户树变更时按 tag 清理权限缓存（避免依赖 SCAN）。
+- **默认不强制 Redis**：可用 `file` / `database` / `array` 等默认缓存驱动；权限 TTL、memo 等照常工作。租户重绑时，非 Redis 驱动可能 **无法按前缀批量删缓存**（见 `OrgRbacCache` 与日志），可改用 **`php artisan org-rbac:clear-permission-cache`** 或生产使用 Redis。
+- **推荐生产使用 Redis**：便于 **tag 失效** 与 **SCAN 清前缀**。设置 `CACHE_STORE=redis` 后，可选 **`ORG_RBAC_REQUIRE_REDIS_CACHE=true`** 在启动时 **校验** 默认缓存为 Redis（硬约束，防配置漂移）。
+- **Tag 失效**：默认 `ORG_RBAC_PERM_CACHE_USE_TAGS=true`；仅当缓存驱动支持 tag 时生效，否则自动回退。
 
 ## 日志与合规
 
@@ -24,25 +23,25 @@ Laravel **12.x / 13.x** 多租户、**统一租户树** + RBAC：**Platform / Or
 
 | 变量 | 说明 |
 |------|------|
-| `CACHE_STORE` | 生产请为 `redis`。 |
-| `ORG_RBAC_REQUIRE_REDIS_CACHE` | 默认 `true`；仅测试/无 Redis 开发机可 `false`。 |
+| `CACHE_STORE` | 推荐生产使用 `redis`（非必须，见上文）。 |
+| `ORG_RBAC_REQUIRE_REDIS_CACHE` | 默认 `false`；设为 `true` 时启动期强制默认缓存为 Redis。 |
 | `ORG_RBAC_PERM_CACHE_USE_TAGS` | 默认 `true`（建议与 Redis 同用）。 |
 | `ORG_RBAC_LOG_ENABLED` | 默认 `true`；可 `false` 关闭包内结构化日志。 |
 | `ORG_RBAC_LOG_CHANNEL` | 非空时写入指定 Log channel。 |
 | `ORG_RBAC_ALLOW_TENANT_HEADER` | 默认 `false`。为 `true` 才允许从 HTTP Header 解析租户（须在网关剥离或仅内网使用）。 |
 | `ORG_RBAC_TENANT_HEADER_REQUIRES_AUTH` | 默认 `true`：未登录则忽略 Header。 |
 | `ORG_RBAC_SUPER_ADMIN_AUDIT` | 默认 `false`；为 `true` 时记录超管在各租户上下文的权限解析审计日志。 |
-| `ORG_RBAC_REDIS_STRICT_BOOT` | 默认 `true`；`false` 时缓存非 Redis 仅打日志不中断启动（不推荐生产）。 |
+| `ORG_RBAC_REDIS_STRICT_BOOT` | 在已开启「强制 Redis」时生效：默认 `true` 抛异常；`false` 仅打日志并继续启动。 |
 
 ## 0.7.x
 
 - **Header 租户 ID**：默认 **不** 从 Header 解析；需 `ORG_RBAC_ALLOW_TENANT_HEADER=true` 且建议配合 **已认证用户**（默认要求登录后才采纳 Header）。
 - **超管审计**：可选 `ORG_RBAC_SUPER_ADMIN_AUDIT=true`。
-- **Redis**：可选非严格启动（仅日志），见 `ORG_RBAC_REDIS_STRICT_BOOT`。
+- **Redis**：默认不强制；可选 `ORG_RBAC_REQUIRE_REDIS_CACHE=true` + `ORG_RBAC_REDIS_STRICT_BOOT`。
 
 ## 0.6.x
 
-- **强制 Redis**：非 PHPUnit 且 `require_redis=true` 时，启动期校验默认缓存为 Redis。
+- **可选强制 Redis**：可在配置中开启 `require_redis`，启动期校验 Redis。
 - **日志**：`OrgRbacLog`；租户解析失败/成功（debug）、租户重绑、权限缓存 flush（tag/SCAN）等可观测性。
 - **测试**：补充 Resolver、中间件、HTTP 路由解析、超管有效权限、`RedisCacheRequirement` 等用例。
 - **定位**：文档明确 **仅建议全新项目**；合规与审计见 `SECURITY.md`。

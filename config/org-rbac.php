@@ -34,14 +34,16 @@ return [
     |--------------------------------------------------------------------------
     | Effective permission cache (null = disable)
     |--------------------------------------------------------------------------
-    | Production expects Redis as the default cache store. PHPUnit sets runningUnitTests()
-    | and typically disables this check via ORG_RBAC_REQUIRE_REDIS_CACHE=false.
+    | Redis is recommended for production (tags + SCAN flush). By default this package does NOT
+    | require Redis — file/database/array caches work; tenant reparent may not delete stale keys
+    | automatically without Redis (see OrgRbacCache). Set ORG_RBAC_REQUIRE_REDIS_CACHE=true to
+    | enforce Redis on boot (optional hardening).
     */
     'cache' => [
-        'require_redis' => env('ORG_RBAC_REQUIRE_REDIS_CACHE', true),
+        'require_redis' => env('ORG_RBAC_REQUIRE_REDIS_CACHE', false),
         /*
         | When require_redis is true: if strict, boot throws when store is not Redis.
-        | If false, only logs (OrgRbacLog) and continues — for staging / degraded mode (not recommended for prod).
+        | If false, only logs (OrgRbacLog) and continues.
         */
         'require_redis_strict' => env('ORG_RBAC_REDIS_STRICT_BOOT', true),
         'permissions_ttl_minutes' => env('ORG_RBAC_PERMISSION_CACHE_TTL', 10),
